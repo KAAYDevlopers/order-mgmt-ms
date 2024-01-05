@@ -1,0 +1,4 @@
+apiVersion: v2
+name: order-management-ms
+description: Helm chart for order-management-ms
+version: 1.0.0-SNAPSHOT
