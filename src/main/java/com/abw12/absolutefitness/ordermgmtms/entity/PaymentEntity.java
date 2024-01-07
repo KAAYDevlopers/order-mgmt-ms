@@ -18,19 +18,23 @@ public class PaymentEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "payment_id")
-    private String paymentId;
+    private String paymentId;   //internal paymentId which is also a primary key
     @Column(name = "pg_payment_id")
     private String pgPaymentId;
     @Column(name = "order_id")
     private String orderId; //internal orderId(foreign key to orderEntity)
-    @Column(name = "razorpay_signature")
-    private String razorpaySignature;
     @Column(name = "payment_status")
     private String paymentStatus;
     @Column(name = "payment_method")
     private String paymentMethod;
     @Column(name = "payment_amount")
-    private BigDecimal amount;
-    @Column(name = "payment_date")
-    private OffsetDateTime paymentDate;
+    private BigDecimal paymentAmount;
+    @Column(name = "invoice_id")
+    private String invoiceId;
+    @Column(name = "refund_status")
+    private String refundStatus;
+    @Column(name = "amount_refunded")
+    private Integer amountRefunded;
+    @Column(name = "payment_created_date")
+    private OffsetDateTime paymentCreatedDate;
 }

@@ -1,9 +1,11 @@
 package com.abw12.absolutefitness.ordermgmtms.gateway.implementation;
 
 import com.abw12.absolutefitness.ordermgmtms.constants.CommonConstants;
-import com.abw12.absolutefitness.ordermgmtms.dto.request.CreateOrderReq;
+import com.abw12.absolutefitness.ordermgmtms.advice.ErrorResponse;
+import com.abw12.absolutefitness.ordermgmtms.dto.request.CreateOrderReqDTO;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.razorpay.Order;
+import com.razorpay.Payment;
 import com.razorpay.RazorpayClient;
 import com.razorpay.RazorpayException;
 import org.json.JSONObject;
@@ -13,11 +15,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import java.util.Map;
 import java.util.Random;
 
 @Component
-public class CreateOrderRestImpl {
+public class PaymentGatewayRestImpl {
 
     @Value("${payment.razorpay.api.keyId}")
     private String keyId;
@@ -28,10 +29,10 @@ public class CreateOrderRestImpl {
     @Autowired
     private ObjectMapper objectMapper;
 
-    private static final Logger logger = LoggerFactory.getLogger(CreateOrderRestImpl.class);
+    private static final Logger logger = LoggerFactory.getLogger(PaymentGatewayRestImpl.class);
 
 
-    public Order initiateCreateOrderPGReq(CreateOrderReq orderReq){
+    public Order initiateCreateOrderPGReq(CreateOrderReqDTO orderReq){
         Random rand = new Random();
         JSONObject req = new JSONObject();
         req.put(CommonConstants.AMOUNT,orderReq.getTotalAmount().intValue() * 100);
@@ -51,5 +52,22 @@ public class CreateOrderRestImpl {
             throw new RuntimeException(e);
         }
         return orderResponse;
+    }
+
+    public Payment fetchPaymentDetails(String pgPaymentId){
+        Payment paymentResponse;
+        try {
+            RazorpayClient client = new RazorpayClient(keyId,secret);
+            paymentResponse = client.payments.fetch(pgPaymentId);
+            if(paymentResponse.has("error")){
+                ErrorResponse errorResponse = objectMapper.convertValue(paymentResponse, ErrorResponse.class);
+                logger.error("Failed to fetch payment details,failure cause :: {}",errorResponse.getError().getDescription());
+                throw new RuntimeException(String.format("Error while fetching payment details from razorpay for razorpay_payment_id=%s :: cause =>",pgPaymentId,errorResponse));
+            }
+        } catch (RazorpayException e) {
+            logger.error("Could not fetch payment details from razorpay server for razorpay_payment_id = {} :: errorMessage = {}",pgPaymentId,e.getMessage());
+            throw new RuntimeException(e);
+        }
+        return paymentResponse;
     }
 }

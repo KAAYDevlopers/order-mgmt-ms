@@ -7,9 +7,9 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class InventoryUpdateReqDTO {
+public class VariantInventoryDTO {
 
-    private String productInventoryId;
+    private String variantInventoryId;
     private String variantId;
     private Long quantity;
     private String sku;

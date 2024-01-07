@@ -22,8 +22,10 @@ public class OrderItemEntity {
     private String orderId; //(foreign key to OrderEntity)
     @Column(name = "product_id")
     private String productId;
-    @Column(name = "variantId")
+    @Column(name = "variant_id")
     private String variantId;
+    @Column(name = "variant_inventory_id")
+    private String variantInventoryId;
     private Long quantity;
     @Column(name = "price_per_unit")
     private BigDecimal pricePerUnit;

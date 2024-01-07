@@ -29,6 +29,8 @@ public class OrderEntity {
     private String currency;
     @Column(name = "payment_id")
     private String paymentId;//(foreign key to PaymentEntity)
+    @Column(name = "payment_verification")
+    private Boolean paymentVerification;
     @Column(name = "shipping_address")
     private String shippingAddress;
     @Column(name = "billing_address")
