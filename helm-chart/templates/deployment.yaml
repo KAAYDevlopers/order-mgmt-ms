@@ -19,6 +19,16 @@ spec:
               value: "dev"
             - name: SPRING_CONFIG_LOCATION
               value: "file:{{ .Values.app.configPath }}/"
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: psql-credentials
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: psql-credentials
+                  key: password
           volumeMounts:
             - name: config-volume
               mountPath: {{ .Values.app.configPath }}

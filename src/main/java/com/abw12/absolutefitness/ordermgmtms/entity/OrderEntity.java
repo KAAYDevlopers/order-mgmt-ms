@@ -29,10 +29,14 @@ public class OrderEntity {
     private String currency;
     @Column(name = "payment_id")
     private String paymentId;//(foreign key to PaymentEntity)
+    @Column(name = "payment_signature_verification")
+    private Boolean paymentSignatureVerification;
     @Column(name = "shipping_address")
     private String shippingAddress;
     @Column(name = "billing_address")
     private String billingAddress;
     @Column(name="order_created_at")
     private OffsetDateTime orderCreatedAt;
+    @Column(name="order_Modified_at")
+    private OffsetDateTime orderModifiedAt;
 }
