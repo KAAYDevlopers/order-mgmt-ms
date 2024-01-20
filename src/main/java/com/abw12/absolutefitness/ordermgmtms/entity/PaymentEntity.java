@@ -37,4 +37,6 @@ public class PaymentEntity {
     private Integer amountRefunded;
     @Column(name = "payment_created_date")
     private OffsetDateTime paymentCreatedDate;
+    @Column(name = "payment_modified_date")
+    private OffsetDateTime paymentModifiedDate;
 }

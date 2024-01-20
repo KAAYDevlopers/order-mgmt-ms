@@ -2,7 +2,7 @@ app:
   replicas: 1
   name: order-management-ms
   configPath: /app/config
-  port: 8089
+  port: 8086
 
 
 configMap:
@@ -12,8 +12,8 @@ image:
   repository: abw12/order-management-ms # update image name
   tag: v1
 postgres:
-  username: postgres
-  password: password
-  host: postgres-service
-  port: 5432
+  username: ${DB_USERNAME}
+  password: ${DB_PASSWORD}
+  host: db-postgresql-blr1-43787-do-user-15428494-0.c.db.ondigitalocean.com
+  port: 25060
   db: absolutehealth

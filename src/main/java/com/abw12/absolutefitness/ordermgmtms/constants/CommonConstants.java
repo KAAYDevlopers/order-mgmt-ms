@@ -13,12 +13,13 @@ public class CommonConstants {
 
     public static final String CURRENCY_VALUE_INR="INR";
     public static final String CURRENCY_KEY="currency";
-
     public static final String ORDER_STATUS_PENDING="PENDING";
-    public static final String ORDER_STATUS_COMPLETED="COMPLETED";
-    public static final String ORDER_STATUS_CONFIRMED="CONFIRMED";
-    public static final String ORDER_STATUS_FAILED="FAILED";
-
+    public static final String ORDER_STATUS_CAPTURED_PENDING_AUTHORIZATION="CAPTURED_PENDING_AUTHORIZATION";
+    public static final String ORDER_STATUS_COMPLETED="COMPLETED"; //when payment order.paid event is receieved
+    public static final String ORDER_STATUS_PAYMENT_AUTHORIZED ="PAYMENT_AUTHORIZED"; //when payment is authorised
+    public static final String ORDER_STATUS_PAYMENT_VERIFICATION_FAILED ="PAYMENT_VERIFICATION_FAILED"; //signature verification failed
+    public static final String ORDER_STATUS_FAILED="FAILED"; //when payment failed
+    public static final String ORDER_STATUS_PAYMENT_CAPTURED="CAPTURED"; //when payment captured event is received
     public static final String SUCCESS = "success";
     public static final String FAILURE = "failure";
     public static final String VERIFY_PAYMENT_RESPONSE_SUCCESS_MSG="Payment verification successful. Order confirmed.";

@@ -4,10 +4,7 @@ import com.abw12.absolutefitness.ordermgmtms.constants.CommonConstants;
 import com.abw12.absolutefitness.ordermgmtms.advice.ErrorResponse;
 import com.abw12.absolutefitness.ordermgmtms.dto.request.CreateOrderReqDTO;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.razorpay.Order;
-import com.razorpay.Payment;
-import com.razorpay.RazorpayClient;
-import com.razorpay.RazorpayException;
+import com.razorpay.*;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,6 +21,7 @@ public class PaymentGatewayRestImpl {
     private String keyId;
     @Value("${payment.razorpay.api.secret}")
     private String secret;
+
     @Value("{payment.razorpay.api.createOrderURL}")
     private String createOrderUrl;
     @Autowired
@@ -62,7 +60,7 @@ public class PaymentGatewayRestImpl {
             if(paymentResponse.has("error")){
                 ErrorResponse errorResponse = objectMapper.convertValue(paymentResponse, ErrorResponse.class);
                 logger.error("Failed to fetch payment details,failure cause :: {}",errorResponse.getError().getDescription());
-                throw new RuntimeException(String.format("Error while fetching payment details from razorpay for razorpay_payment_id=%s :: cause =>",pgPaymentId,errorResponse));
+                throw new RuntimeException(String.format("Error while fetching payment details from razorpay for razorpay_payment_id=%s :: cause => %s",pgPaymentId,errorResponse));
             }
         } catch (RazorpayException e) {
             logger.error("Could not fetch payment details from razorpay server for razorpay_payment_id = {} :: errorMessage = {}",pgPaymentId,e.getMessage());
@@ -70,4 +68,6 @@ public class PaymentGatewayRestImpl {
         }
         return paymentResponse;
     }
+
+
 }

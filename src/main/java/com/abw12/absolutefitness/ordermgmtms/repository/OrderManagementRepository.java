@@ -12,4 +12,7 @@ public interface OrderManagementRepository extends JpaRepository<OrderEntity,Str
 
     @Query("SELECT o FROM OrderEntity o WHERE o.orderId=:orderId")
     Optional<OrderEntity> getOrderById(String orderId);
+
+    @Query("SELECT o FROM OrderEntity o WHERE o.pgOrderId=:pgOrderId")
+    Optional<OrderEntity> getOrderByPgOrderId(String pgOrderId);
 }
