@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -15,4 +16,6 @@ public interface OrderManagementRepository extends JpaRepository<OrderEntity,Str
 
     @Query("SELECT o FROM OrderEntity o WHERE o.pgOrderId=:pgOrderId")
     Optional<OrderEntity> getOrderByPgOrderId(String pgOrderId);
+    @Query("SELECT o FROM OrderEntity o WHERE o.userId=:userId")
+    Optional<List<OrderEntity>> getOrderByUserId(String userId);
 }

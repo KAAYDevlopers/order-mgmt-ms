@@ -1,6 +1,5 @@
 package com.abw12.absolutefitness.ordermgmtms.dto;
 
-import jakarta.persistence.Id;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -10,14 +9,13 @@ import java.math.BigDecimal;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class OrderItemDTO {
-    @Id
-    private String orderItemId; //(primary key)
-    private String orderId; //(foreign key to OrderEntity)
+public class OrderItemHistory {
+
     private String productName;
-    private String variantId;
-    private String variantInventoryId;
+    private String variantName;
+    private String variantValue;
+    private String variantType;
+    private String imagePath;
     private Long quantity;
     private BigDecimal pricePerUnit;
-    private String orderItemCreatedAt;
 }

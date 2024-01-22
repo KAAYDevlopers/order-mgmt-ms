@@ -17,6 +17,7 @@ public class OrderDTO {
     private String orderId; // (primary key)
     private String pgOrderId;
     private String userId;
+    private Long orderNumber;
     private String orderStatus; //(e.g., PENDING, COMPLETED, FAILED)
     private BigDecimal totalAmount;
     private String currency;

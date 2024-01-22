@@ -22,6 +22,8 @@ public class OrderEntity {
     private String pgOrderId;
     @Column(name = "user_id")
     private String userId;
+    @Column(name = "order_number")
+    private Long orderNumber;
     @Column(name = "order_status")
     private String orderStatus; //(e.g., PENDING, COMPLETED, FAILED)
     @Column(name = "total_amount")
@@ -35,6 +37,8 @@ public class OrderEntity {
     private String shippingAddress;
     @Column(name = "billing_address")
     private String billingAddress;
+    @Column(name = "order_placed_date")
+    private OffsetDateTime orderPlacedDate;
     @Column(name="order_created_at")
     private OffsetDateTime orderCreatedAt;
     @Column(name="order_Modified_at")

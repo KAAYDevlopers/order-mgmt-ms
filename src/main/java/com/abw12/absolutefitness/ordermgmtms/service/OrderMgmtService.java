@@ -2,9 +2,7 @@ package com.abw12.absolutefitness.ordermgmtms.service;
 
 import com.abw12.absolutefitness.ordermgmtms.constants.CommonConstants;
 import com.abw12.absolutefitness.ordermgmtms.constants.PaymentEventType;
-import com.abw12.absolutefitness.ordermgmtms.dto.OrderDTO;
-import com.abw12.absolutefitness.ordermgmtms.dto.OrderItemDTO;
-import com.abw12.absolutefitness.ordermgmtms.dto.WebhookEventRes;
+import com.abw12.absolutefitness.ordermgmtms.dto.*;
 import com.abw12.absolutefitness.ordermgmtms.dto.request.CreateOrderReqDTO;
 import com.abw12.absolutefitness.ordermgmtms.dto.response.CreateOrderResDTO;
 import com.abw12.absolutefitness.ordermgmtms.entity.OrderEntity;
@@ -32,6 +30,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 
 @Service
 public class OrderMgmtService {
@@ -157,6 +156,29 @@ public class OrderMgmtService {
         response.setOrderItems(orderItemList);
         logger.info("Fetched order details with orderId={} => {}",orderId,response);
         return response;
+    }
+
+    @Transactional(readOnly = true)
+    public List<OrderHistoryDTO> fetchOrderHistory(String userId){
+        logger.info("Fetching Order History for userId={}",userId);
+        List<OrderEntity> ordersList = orderManagementRepository.getOrderByUserId(userId).orElseThrow(() ->
+                new RuntimeException(String.format("Cannot find order details by userId : %s", userId)));
+        logger.info("Order details fetched for userId={} => Found {} order",userId,ordersList.size());
+        List<OrderHistoryDTO> orderHistoryRes = ordersList.stream().map(orderEntity -> {
+            String orderId = orderEntity.getOrderId();
+            List<OrderItemEntity> orderItemList = orderItemRepository.fetchOrderItemsByOderId(orderId).orElseThrow(() ->
+                    new RuntimeException(String.format("Cannot find orderItems by orderId : %s", orderId)));
+            List<OrderItemHistory> orderItemHistoryList = orderItemList.stream().map(orderItem -> {
+                String variantId = orderItem.getVariantId();
+                // API call to product-catalog-ms to fetch variant info
+                ProductVariantDTO productVariantData = helperUtils.fetchVariantData(variantId);
+                return helperUtils.constructOrderHistoryItem(productVariantData, orderItem);
+            }).toList();
+            return new OrderHistoryDTO(orderEntity.getOrderNumber(), orderEntity.getTotalAmount(), orderEntity.getShippingAddress(),
+                    orderEntity.getBillingAddress(), orderItemHistoryList, orderEntity.getOrderPlacedDate().toString());
+        }).toList();
+        logger.info("Successfully fetched order history for userID={} => {}",userId,orderHistoryRes);
+        return orderHistoryRes;
     }
 
     /**
@@ -302,6 +324,8 @@ public class OrderMgmtService {
         existingOrderInDB.setPaymentId(paymentEntityStored.getPaymentId());
         existingOrderInDB.setPaymentSignatureVerification(true);
         existingOrderInDB.setOrderModifiedAt(OffsetDateTime.now());
+        existingOrderInDB.setOrderPlacedDate(OffsetDateTime.now());
+        existingOrderInDB.setOrderNumber( new Random().nextLong());
         //update the order details in db
         OrderEntity storedOrderData = orderManagementRepository.save(existingOrderInDB);
         logger.info("Successfully stored the Order & Payment data in DB for {} event received with orderId={}",eventType,orderId);

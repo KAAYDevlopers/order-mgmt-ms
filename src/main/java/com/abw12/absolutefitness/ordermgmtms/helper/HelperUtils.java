@@ -2,13 +2,13 @@ package com.abw12.absolutefitness.ordermgmtms.helper;
 
 import com.abw12.absolutefitness.ordermgmtms.constants.CommonConstants;
 import com.abw12.absolutefitness.ordermgmtms.constants.PaymentEventType;
-import com.abw12.absolutefitness.ordermgmtms.dto.OrderItemDTO;
-import com.abw12.absolutefitness.ordermgmtms.dto.UserDataDTO;
+import com.abw12.absolutefitness.ordermgmtms.dto.*;
 import com.abw12.absolutefitness.ordermgmtms.dto.request.CreateOrderReqDTO;
 import com.abw12.absolutefitness.ordermgmtms.dto.request.VariantInventoryDTO;
 import com.abw12.absolutefitness.ordermgmtms.entity.OrderEntity;
 import com.abw12.absolutefitness.ordermgmtms.entity.OrderItemEntity;
 import com.abw12.absolutefitness.ordermgmtms.entity.PaymentEntity;
+import com.abw12.absolutefitness.ordermgmtms.gateway.interfaces.ProductCatalogClient;
 import com.abw12.absolutefitness.ordermgmtms.gateway.interfaces.ProductCatalogInventoryClient;
 import com.abw12.absolutefitness.ordermgmtms.mappers.OrderItemsMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -42,6 +42,8 @@ public class HelperUtils {
     private OrderItemsMapper orderItemsMapper;
     @Autowired
     private ProductCatalogInventoryClient productCatalogInventoryClient;
+    @Autowired
+    private ProductCatalogClient productCatalogClient;
     @Autowired
     private ObjectMapper objectMapper;
 
@@ -220,6 +222,39 @@ public class HelperUtils {
 //            }
 //        });
 //    }
+
+    public ProductVariantDTO fetchVariantData(String variantId){
+        logger.info("Fetching variant data for variantId={} by calling product-catalog API..",variantId);
+        ResponseEntity<Map<String, Object>> response = productCatalogClient.getProductVariantById(variantId);
+        ProductVariantDTO productVariantDTO;
+        if(response.getStatusCode().is2xxSuccessful() && response.hasBody()){
+            productVariantDTO=objectMapper.convertValue(response.getBody(),ProductVariantDTO.class);
+            logger.info("Response: variant data with variantId={} => {}",variantId,productVariantDTO);
+            return productVariantDTO;
+        }else {
+            throw new RuntimeException(String.format("Exception while getting variant data from product-catalog-ms :: %s => %s",
+                    response.getStatusCode(),response.getBody()));
+        }
+    }
+
+    public OrderItemHistory constructOrderHistoryItem(ProductVariantDTO variant,
+                                                      OrderItemEntity orderItem)
+    {
+        OrderItemHistory itemHistory = new OrderItemHistory();
+        if(!StringUtils.isEmpty(variant.getVariantName()))
+            itemHistory.setVariantName(variant.getVariantName());
+        if(!StringUtils.isEmpty(variant.getVariantValue()))
+            itemHistory.setVariantValue(variant.getVariantValue());
+        if(!StringUtils.isEmpty(variant.getVariantType()))
+            itemHistory.setVariantType(variant.getVariantType());
+        if(!StringUtils.isEmpty(variant.getImagePath()))
+            itemHistory.setImagePath(variant.getImagePath());
+        if(orderItem.getQuantity()!=null)
+            itemHistory.setQuantity(orderItem.getQuantity());
+        if(orderItem.getPricePerUnit()!=null)
+            itemHistory.setPricePerUnit(orderItem.getPricePerUnit());
+        return itemHistory;
+    }
 
     public void updateVariantInventoryWebhook(List<OrderItemEntity> orderItems,String eventType) {
         orderItems.forEach(orderItem -> {
