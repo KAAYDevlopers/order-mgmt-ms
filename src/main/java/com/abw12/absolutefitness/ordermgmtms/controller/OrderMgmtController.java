@@ -46,13 +46,24 @@ public class OrderMgmtController {
 //    }
 
     @GetMapping("/get-order/{orderId}")
-    private ResponseEntity<?> createTransactionAndPlaceOrder(@RequestParam String orderId){
+    private ResponseEntity<?> getOrderById(@RequestParam String orderId){
         logger.info("Inside get order controller.");
         try{
             return new ResponseEntity<>(orderMgmtService.getOrderDetails(orderId), HttpStatus.OK);
         }catch (Exception ex){
             logger.error("Exception while fetching the order details with orderId: {} => {}", orderId,ex.getMessage());
             return new ResponseEntity<>("Failed to fetch the order,try again later",HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @GetMapping("/fetchOrderHistory/{userId}")
+    private ResponseEntity<?> fetchOrderHistory(@RequestParam String userId){
+        logger.info("Inside fetchOrderHistory API call...");
+        try{
+            return new ResponseEntity<>(orderMgmtService.fetchOrderHistory(userId), HttpStatus.OK);
+        }catch (Exception ex){
+            logger.error("Exception while fetching the order history for userId: {} => {}", userId,ex.getMessage());
+            return new ResponseEntity<>("Failed to fetch the order history,try again later",HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 

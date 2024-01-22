@@ -20,8 +20,8 @@ public class OrderItemEntity {
     private String orderItemId; //(primary key)
     @Column(name = "order_id")
     private String orderId; //(foreign key to OrderEntity)
-    @Column(name = "product_id")
-    private String productId;
+    @Column(name = "product_name")
+    private String productName;
     @Column(name = "variant_id")
     private String variantId;
     @Column(name = "variant_inventory_id")
