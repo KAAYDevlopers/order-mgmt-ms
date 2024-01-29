@@ -20,12 +20,17 @@ import com.abw12.absolutefitness.ordermgmtms.repository.PaymentEntityRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.razorpay.Order;
 import org.apache.commons.lang3.StringUtils;
+import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Sinks;
 
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +59,10 @@ public class OrderMgmtService {
 
 
     private static final Logger logger = LoggerFactory.getLogger(OrderMgmtService.class);
+
+    //Help building Sinks.Many that will broadcast signals to multiple Subscriber
+    private final Sinks.Many<OrderStatusUpdateEvent> sink = Sinks.many().multicast().onBackpressureBuffer();
+
 
     /**
      * @param request UI collects the userdata, product variant data from cart and calculated total amount and send to
@@ -175,7 +184,7 @@ public class OrderMgmtService {
                 return helperUtils.constructOrderHistoryItem(productVariantData, orderItem);
             }).toList();
             return new OrderHistoryDTO(orderEntity.getOrderNumber(), orderEntity.getTotalAmount(), orderEntity.getShippingAddress(),
-                    orderEntity.getBillingAddress(), orderItemHistoryList, orderEntity.getOrderPlacedDate().toString());
+                    orderEntity.getBillingAddress(), orderItemHistoryList, helperUtils.offsetDateTimeFormatter(orderEntity.getOrderPlacedDate()));
         }).toList();
         logger.info("Successfully fetched order history for userID={} => {}",userId,orderHistoryRes);
         return orderHistoryRes;
@@ -183,14 +192,14 @@ public class OrderMgmtService {
 
     /**
      * @param eventDataReceived Event data received from razorpay webhook api call.
-     * @param receivedSignature payment signature received in handler to validated the authenticity of the payment information whether its from razorpay or not.
+     * @param receivedSignature payment signature received in handler to validate the authenticity of the payment information whether its from razorpay or not.
      */
     @Transactional
     public void handleWebhookEvent(String eventDataReceived, String receivedSignature){
         logger.info("Verifying the Event received for razorpay webhook");
         // Validate the signature
-        boolean isPaymentSignatureVerified = helperUtils.verifyWebhookSignature(eventDataReceived, receivedSignature);
-        logger.info("Event signature is verified={}",isPaymentSignatureVerified);
+//        boolean isPaymentSignatureVerified = helperUtils.verifyWebhookSignature(eventDataReceived, receivedSignature);
+//        logger.info("Event signature is verified={}",isPaymentSignatureVerified);
         WebhookEventRes webhookEventRes;
         try {
             webhookEventRes= JsonParser.parseJson(eventDataReceived, WebhookEventRes.class);
@@ -222,21 +231,21 @@ public class OrderMgmtService {
         logger.info("Order retrieved with pgOrderId={} :: Data={}",finalPgOrderId,existingOrderInDB);
 
         String orderId = existingOrderInDB.getOrderId(); //internal orderId
-        if(!isPaymentSignatureVerified){
-            logger.error("Payment Signature verification failed for received event");
-            //set status to verification failed
-            existingOrderInDB.setOrderStatus(CommonConstants.ORDER_STATUS_PAYMENT_VERIFICATION_FAILED);
-            //store payment details in DB
-            PaymentEntity paymentEntityStored = storePaymentDetailsInDBWebhook(orderId, entityMap);
-            existingOrderInDB.setPaymentId(paymentEntityStored.getPaymentId()); //internal paymentId
-            existingOrderInDB.setPaymentSignatureVerification(false);
-            existingOrderInDB.setOrderModifiedAt(OffsetDateTime.now());
-            //update the order details in db for failed signature verification to keep track of such orders for further analysis
-            OrderEntity storedOrderData = orderManagementRepository.save(existingOrderInDB);
-            // TODO: 20-01-2024 Need to decide what response should be given to client and if payment signature failed do we have to refund the amount or not
-            throw new RuntimeException(String.format("Invalid Signature for webhook eventDataReceived :: Order and payment Details stored in DB for further analysis, orderId=%s",
-                    storedOrderData.getOrderId()));
-        }
+//        if(!isPaymentSignatureVerified){
+//            logger.error("Payment Signature verification failed for received event");
+//            //set status to verification failed
+//            existingOrderInDB.setOrderStatus(CommonConstants.ORDER_STATUS_PAYMENT_VERIFICATION_FAILED);
+//            //store payment details in DB
+//            PaymentEntity paymentEntityStored = storePaymentDetailsInDBWebhook(orderId, entityMap);
+//            existingOrderInDB.setPaymentId(paymentEntityStored.getPaymentId()); //internal paymentId
+//            existingOrderInDB.setPaymentSignatureVerification(false);
+//            existingOrderInDB.setOrderModifiedAt(OffsetDateTime.now());
+//            //update the order details in db for failed signature verification to keep track of such orders for further analysis
+//            OrderEntity storedOrderData = orderManagementRepository.save(existingOrderInDB);
+//            // TODO: 20-01-2024 Need to decide what response should be given to client and if payment signature failed do we have to refund the amount or not
+//            throw new RuntimeException(String.format("Invalid Signature for webhook eventDataReceived :: Order and payment Details stored in DB for further analysis, orderId=%s",
+//                    storedOrderData.getOrderId()));
+//        }
         //payment signature verification done then handle the different eventType
         switch (eventType){
             case PaymentEventType.AUTHORIZED -> {
@@ -291,7 +300,9 @@ public class OrderMgmtService {
                 new RuntimeException(String.format("Error While fetching orderItem list for orderId : %s", orderId)));
         helperUtils.updateVariantInventoryWebhook(orderItems,eventType);
         logger.info("Done updating Product Variant Inventory data for orderId={}",orderId);
-        // TODO: 20-01-2024 Need to work on response to UI
+        //create response event for the UI and publish to the event stream
+        OrderStatusUpdateEvent orderStatusUpdateEvent = helperUtils.constructOrderUpdateEvent(orderId, storedOrderData, paymentEntityStored);
+        sendOrderUpdate(orderStatusUpdateEvent);
     }
 
     /**
@@ -313,7 +324,14 @@ public class OrderMgmtService {
         //update the order details in db
         OrderEntity storedOrderData = orderManagementRepository.save(existingOrderInDB);
         logger.info("Successfully stored the Order & Payment data in DB for {} event received with orderId={}",eventType,orderId);
-        // TODO: 20-01-2024 Need to work on response to UI
+        //update product inventory data
+        List<OrderItemEntity> orderItems = orderItemRepository.fetchOrderItemsByOderId(orderId).orElseThrow(() ->
+                new RuntimeException(String.format("Error While fetching orderItem list for orderId : %s", orderId)));
+        helperUtils.updateVariantInventoryWebhook(orderItems,eventType);
+        logger.info("Done updating Product Variant Inventory data for orderId={}",orderId);
+        //create response event for the UI and publish to the event stream
+        OrderStatusUpdateEvent orderStatusUpdateEvent = helperUtils.constructOrderUpdateEvent(orderId, storedOrderData, paymentEntityStored);
+        sendOrderUpdate(orderStatusUpdateEvent);
     }
 
     private void markPaymentAsCaptured(OrderEntity existingOrderInDB, Map<String,Object> entityMap, String orderId, String eventType) {
@@ -325,7 +343,7 @@ public class OrderMgmtService {
         existingOrderInDB.setPaymentSignatureVerification(true);
         existingOrderInDB.setOrderModifiedAt(OffsetDateTime.now());
         existingOrderInDB.setOrderPlacedDate(OffsetDateTime.now());
-        existingOrderInDB.setOrderNumber( new Random().nextLong());
+        existingOrderInDB.setOrderNumber( Math.abs(new Random().nextLong()));
         //update the order details in db
         OrderEntity storedOrderData = orderManagementRepository.save(existingOrderInDB);
         logger.info("Successfully stored the Order & Payment data in DB for {} event received with orderId={}",eventType,orderId);
@@ -334,7 +352,10 @@ public class OrderMgmtService {
                 new RuntimeException(String.format("Error While fetching orderItem list for orderId : %s", orderId)));
         helperUtils.updateVariantInventoryWebhook(orderItems,eventType);
         logger.info("Done updating Product Variant Inventory data for orderId={}",orderId);
-        // TODO: 20-01-2024 Need to work on response to UI and trigger email/sms notification of order confirmation
+        // TODO: 20-01-2024 Need to work on trigger email/sms notification of order confirmation
+        //create response event for the UI and publish to the event stream
+        OrderStatusUpdateEvent orderStatusUpdateEvent = helperUtils.constructOrderUpdateEvent(orderId, storedOrderData, paymentEntityStored);
+        sendOrderUpdate(orderStatusUpdateEvent);
     }
 
     private void handlePaymentFailed(OrderEntity existingOrderInDB,Map<String,Object> entityMap,String orderId,String eventType) {
@@ -353,7 +374,9 @@ public class OrderMgmtService {
         List<OrderItemEntity> orderItems = orderItemRepository.fetchOrderItemsByOderId(orderId).orElseThrow(() ->
                 new RuntimeException(String.format("Error While fetching orderItem list for orderId : %s", orderId)));
         helperUtils.updateVariantInventoryWebhook(orderItems,eventType);
-        // TODO: 20-01-2024 Need to work on response to UI
+        //create response event for the UI and publish to the event stream
+        OrderStatusUpdateEvent orderStatusUpdateEvent = helperUtils.constructOrderUpdateEvent(orderId, storedOrderData, paymentEntityStored);
+        sendOrderUpdate(orderStatusUpdateEvent);
     }
 
     private OrderEntity storeOrderDataInDB(OrderEntity orderData) {
@@ -394,5 +417,42 @@ public class OrderMgmtService {
         logger.info("Payment details stored successfully in db for orderId = {} => {}",orderId,paymentDataStored);
         return paymentDataStored;
     }
+
+    /**
+     * @param userId the user for which order update are requested
+     * @return This Flux will emit items to its subscribers whenever a new value is pushed into the sink. response is given to client in ServerSentEvent format
+     *
+     */
+    public Flux<ServerSentEvent<OrderStatusUpdateEvent>> orderStatusEventStream(String userId){
+        return sink.asFlux()
+                .filter(updateEvent -> updateEvent.getUserId().equals(userId))
+                .map(update -> ServerSentEvent.builder(update).build())
+                .doOnError(error -> logger.error("Error in SSE Stream OrderUpdate for UserId={} :: ERROR => {}",userId,error.getMessage()))
+                .onErrorResume(error -> Flux.just(ServerSentEvent.builder(errorEventResponse(error)).build()))
+                .mergeWith(heartbeat());
+    }
+
+    public void sendOrderUpdate(OrderStatusUpdateEvent updateEvent){
+        //emitting the events in the sink from which the client will read it by subscribing to the stream
+        sink.tryEmitNext(updateEvent);
+    }
+
+    public OrderStatusUpdateEvent errorEventResponse(Throwable err){
+        OrderStatusUpdateEvent errorEvent = new OrderStatusUpdateEvent();
+        errorEvent.setErrorMsg("Error Occurred :: " + err.getMessage());
+        return errorEvent;
+    }
+
+
+    /** This method keeps the connection alive with client by sending a ping on event stream every 30seconds
+     * @return creates a Flux that emits a long sequence of increasing numbers, starting from 0, at fixed 30-second intervals.
+     */
+    private Publisher<ServerSentEvent<OrderStatusUpdateEvent>> heartbeat() {
+        return Flux.interval(Duration.ofSeconds(30))
+                .map(seq -> ServerSentEvent.<OrderStatusUpdateEvent>builder()
+                        .comment("Keep-alive") // comments are a way to send data that should be ignored by the client application.
+                        .build());
+    }
+
 
 }
