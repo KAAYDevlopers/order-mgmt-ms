@@ -23,10 +23,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 @Component
 public class HelperUtils {
@@ -179,12 +181,12 @@ public class HelperUtils {
             paymentEntity.setAmountRefunded((Integer) razorpayPaymentEntity.get(CommonConstants.RAZORPAY_AMOUNT_REFUNDED));
 
         if(razorpayPaymentEntity.containsKey(CommonConstants.RAZORPAY_PAYMENT_CREATED_AT)
-                && razorpayPaymentEntity.get(CommonConstants.RAZORPAY_PAYMENT_CREATED_AT) !=null)
-            paymentEntity.setPaymentCreatedDate(
-                    OffsetDateTime.parse(
-                            String.valueOf(razorpayPaymentEntity.get(CommonConstants.RAZORPAY_PAYMENT_CREATED_AT))
-                    )
-            );
+                && razorpayPaymentEntity.get(CommonConstants.RAZORPAY_PAYMENT_CREATED_AT) !=null){
+            Integer timestamp = (Integer) razorpayPaymentEntity.get(CommonConstants.RAZORPAY_PAYMENT_CREATED_AT);
+            OffsetDateTime createdAtDate = Instant.ofEpochSecond(timestamp.longValue())
+                    .atOffset(ZoneOffset.UTC);
+            paymentEntity.setPaymentCreatedDate(createdAtDate);
+        }
 
         return paymentEntity;
     }
@@ -249,17 +251,20 @@ public class HelperUtils {
             itemHistory.setVariantType(variant.getVariantType());
         if(!StringUtils.isEmpty(variant.getImagePath()))
             itemHistory.setImagePath(variant.getImagePath());
+        if(!StringUtils.isEmpty(orderItem.getProductName()))
+            itemHistory.setProductName(orderItem.getProductName());
         if(orderItem.getQuantity()!=null)
             itemHistory.setQuantity(orderItem.getQuantity());
         if(orderItem.getPricePerUnit()!=null)
             itemHistory.setPricePerUnit(orderItem.getPricePerUnit());
+
         return itemHistory;
     }
 
     public void updateVariantInventoryWebhook(List<OrderItemEntity> orderItems,String eventType) {
         orderItems.forEach(orderItem -> {
             String variantId = orderItem.getVariantId();
-            ResponseEntity<Map<String, Objects>> variantInventoryDataRes = productCatalogInventoryClient.getVariantInventoryData(variantId);
+            ResponseEntity<Map<String, Object>> variantInventoryDataRes = productCatalogInventoryClient.getVariantInventoryData(variantId);
             VariantInventoryDTO updatedVariantInventoryData;
             if(variantInventoryDataRes.getStatusCode().is2xxSuccessful() && variantInventoryDataRes.hasBody()){
                 VariantInventoryDTO parsedVariantData = objectMapper.convertValue(variantInventoryDataRes.getBody(), VariantInventoryDTO.class);
@@ -278,7 +283,7 @@ public class HelperUtils {
                         variantInventoryDataRes.getStatusCode(),variantInventoryDataRes.getBody()));
             }
             logger.info("Request to update variantId={} inventory data ::  Request: => {}",variantId,updatedVariantInventoryData);
-            ResponseEntity<Map<String, Objects>> updateInventoryResponse = productCatalogInventoryClient.updateInventoryData(updatedVariantInventoryData);
+            ResponseEntity<Map<String, Object>> updateInventoryResponse = productCatalogInventoryClient.updateInventoryData(updatedVariantInventoryData);
             if(!updateInventoryResponse.getStatusCode().is2xxSuccessful()) {
                 logger.error("Error while updating the inventory data for variantID={} => statusCode: {}",variantId,updateInventoryResponse.getStatusCode());
                 throw new RuntimeException(String.format("Error response from update variant inventory API for variantID=%s => statusCode: %s",variantId,updateInventoryResponse.getStatusCode()));
@@ -302,7 +307,7 @@ public class HelperUtils {
         Long currentQuantity = variantInventoryData.getQuantity();
         if(orderItem.getQuantity() > currentQuantity){
             logger.info("Current Inventory stock is less than requested quantity for the variantId={} => requestQuantity={}",
-                                     variantId,orderItem.getQuantity());
+                    variantId,orderItem.getQuantity());
             throw new RuntimeException(String.format("Current Inventory stock is less than requested quantity for the variantId=%s => requestQuantity=%s",
                     variantId,orderItem.getQuantity()));
         }
@@ -313,13 +318,34 @@ public class HelperUtils {
     }
 
     private VariantInventoryDTO updateQuantity(VariantInventoryDTO variantInventoryData,OrderItemEntity orderItem){
-        Long currentQuantity = orderItem.getQuantity();
+        Long currentQuantity = variantInventoryData.getQuantity();
         Long updatedQuantity = currentQuantity - orderItem.getQuantity();
         variantInventoryData.setQuantity(updatedQuantity);
         variantInventoryData.setReserved(false);
         variantInventoryData.setReservedQuantity(0L);
         variantInventoryData.setModifiedAt(OffsetDateTime.now().toString());
         return variantInventoryData;
+    }
+
+    public OrderStatusUpdateEvent constructOrderUpdateEvent(String orderId, OrderEntity orderEntity, PaymentEntity paymentEntity){
+        OrderStatusUpdateEvent orderUpdateEvent = new OrderStatusUpdateEvent();
+        if(!StringUtils.isEmpty(orderId))
+            orderUpdateEvent.setOrderId(orderId);
+        if(orderEntity!=null && orderEntity.getOrderNumber()!=null)
+            orderUpdateEvent.setOrderNumber(orderEntity.getOrderNumber());
+        if(orderEntity!=null && !StringUtils.isEmpty(orderEntity.getUserId()))
+            orderUpdateEvent.setUserId(orderEntity.getUserId());
+        if(paymentEntity!=null && !StringUtils.isEmpty(paymentEntity.getPaymentId()))
+            orderUpdateEvent.setPaymentId(paymentEntity.getPaymentId());
+        if(paymentEntity!=null && !StringUtils.isEmpty(paymentEntity.getPaymentStatus()))
+            orderUpdateEvent.setPaymentStatus(paymentEntity.getPaymentStatus());
+
+        return orderUpdateEvent;
+    }
+
+    public String offsetDateTimeFormatter(OffsetDateTime dateField){
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'");
+        return dateField.format(fmt);
     }
 }
 

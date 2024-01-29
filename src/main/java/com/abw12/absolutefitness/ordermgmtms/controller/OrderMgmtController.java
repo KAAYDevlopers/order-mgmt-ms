@@ -1,5 +1,6 @@
 package com.abw12.absolutefitness.ordermgmtms.controller;
 
+import com.abw12.absolutefitness.ordermgmtms.dto.OrderStatusUpdateEvent;
 import com.abw12.absolutefitness.ordermgmtms.dto.request.CreateOrderReqDTO;
 import com.abw12.absolutefitness.ordermgmtms.service.OrderMgmtService;
 import jakarta.validation.Valid;
@@ -7,8 +8,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+import reactor.core.publisher.Flux;
 
 @RestController
 @RequestMapping("/order-mgmt-ms")
@@ -17,6 +22,7 @@ public class OrderMgmtController {
     private static final Logger logger = LoggerFactory.getLogger(OrderMgmtController.class);
     @Autowired
     private OrderMgmtService orderMgmtService;
+
     @PostMapping("/createTransactionAndPlaceOrder")
     private ResponseEntity<?> createTransactionAndPlaceOrder(@RequestBody @Valid CreateOrderReqDTO request){
         logger.info("Inside place order controller :: order request received.");
@@ -57,7 +63,7 @@ public class OrderMgmtController {
     }
 
     @GetMapping("/fetchOrderHistory/{userId}")
-    private ResponseEntity<?> fetchOrderHistory(@RequestParam String userId){
+    private ResponseEntity<?> fetchOrderHistory(@PathVariable String userId){
         logger.info("Inside fetchOrderHistory API call...");
         try{
             return new ResponseEntity<>(orderMgmtService.fetchOrderHistory(userId), HttpStatus.OK);
@@ -74,10 +80,20 @@ public class OrderMgmtController {
             orderMgmtService.handleWebhookEvent(event, receivedSignature);
             return ResponseEntity.ok("Webhook processed successfully");
         }catch (Exception ex){
-            logger.error("Exception while processing the webhook for event: {} => Error :: {}", event,ex.getMessage());
+            logger.error("Exception while processing the webhook for event =>  Error :: {}",ex.getMessage(),ex.getCause());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error processing webhook");
         }
+    }
 
+    @GetMapping(path= "/order-updates/{userId}",produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<ServerSentEvent<OrderStatusUpdateEvent>> getOrderUpdates(@PathVariable String userId ){
+        logger.info("SSE Controller Invoked by client for Order Update with UserId={}",userId);
+        try{
+            return orderMgmtService.orderStatusEventStream(userId);
+        }catch (Exception e){
+            logger.error("Error while streaming the order-update events :: {}",e.getMessage(),e.getCause());
+            return Flux.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
+        }
     }
 
 }
