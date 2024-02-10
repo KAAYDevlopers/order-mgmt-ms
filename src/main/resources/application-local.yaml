@@ -1,5 +1,5 @@
 server:
-  port: 8089
+  port: 8086
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/absolutehealth
@@ -7,7 +7,7 @@ spring:
     password: password
     driver-class-name: org.postgresql.Driver
   jpa:
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -19,6 +19,17 @@ spring:
         config:
           product-inventory-controller:
             url: http://localhost:8090/catalog/inventory
+          product-catalog-controller:
+            url:  http://localhost:8090/catalog/product
 springdoc:
   api-docs:
     path: /v3/order-mgmt-docs
+
+payment:
+  razorpay:
+    merchantId: NKZ5A3skq8OknJ
+    api:
+      keyId: rzp_test_qfAoOQO3Kpd4KG
+      secret: qWJOEBapbc8auZJ8D23EUFKV
+    webhook:
+      secret: ""

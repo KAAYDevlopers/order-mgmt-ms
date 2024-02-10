@@ -6,12 +6,17 @@ data:
   application-dev.yaml: |
     spring:
       datasource:
-        url: jdbc:postgresql://postgres-service:5432/absolutehealth
-        username: postgres
-        password: password
+        url: jdbc:postgresql://{{ .Values.postgres.host }}:{{ .Values.postgres.port }}/{{ .Values.postgres.db }}
+        username: {{ .Values.postgres.username }}
+        password: {{ .Values.postgres.password }}
         driver-class-name: org.postgresql.Driver
+        hikari:
+          maximum-pool-size: 10
+          minimum-idle: 5
+          idle-timeout: 300000
+          max-lifetime: 1800000
       jpa:
-        show-sql: true
+        show-sql: false
         properties:
           hibernate:
             dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -22,9 +27,19 @@ data:
           client:
             config:
               product-inventory-controller:
-                url: http://product-catalog:8090/catalog/inventory
+                url: http://product-catalog-ms.absolutehealth.svc.cluster.local:80/catalog/inventory
+              product-catalog-controller:
+                url:  http://product-catalog-ms.absolutehealth.svc.cluster.local:80/catalog/product
     server:
       port: {{ .Values.app.port }}
     springdoc:
       api-docs:
         path: /v3/order-mgmt-docs
+    payment:
+      razorpay:
+        merchantId: {{ .Values.payment.razorpay.merchantId }}
+        api:
+          keyId: {{ .Values.payment.razorpay.api.keyId }}
+          secret: {{ .Values.payment.razorpay.api.secret }}
+        webhook:
+          secret: ""

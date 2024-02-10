@@ -23,7 +23,7 @@ public class OrderEntity {
     @Column(name = "user_id")
     private String userId;
     @Column(name = "order_number")
-    private Long orderNumber;
+    private Integer orderNumber;
     @Column(name = "order_status")
     private String orderStatus; //(e.g., PENDING, COMPLETED, FAILED)
     @Column(name = "total_amount")

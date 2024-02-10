@@ -3,8 +3,6 @@ app:
   name: order-management-ms
   configPath: /app/config
   port: 8086
-
-
 configMap:
   name: order-management-config
 
@@ -15,5 +13,14 @@ postgres:
   username: ${DB_USERNAME}
   password: ${DB_PASSWORD}
   host: db-postgresql-blr1-43787-do-user-15428494-0.c.db.ondigitalocean.com
-  port: 25060
+  port: 25061
   db: absolutehealth
+
+payment:
+  razorpay:
+    merchantId: ${MERCHANT_ID}
+    api:
+      keyId: ${API_KEY_ID}
+      secret: ${API_SECRET}
+    webhook:
+      secret: ""

@@ -4,7 +4,7 @@ import com.abw12.absolutefitness.ordermgmtms.constants.CommonConstants;
 import com.abw12.absolutefitness.ordermgmtms.constants.PaymentEventType;
 import com.abw12.absolutefitness.ordermgmtms.dto.*;
 import com.abw12.absolutefitness.ordermgmtms.dto.request.CreateOrderReqDTO;
-import com.abw12.absolutefitness.ordermgmtms.dto.request.VariantInventoryDTO;
+import com.abw12.absolutefitness.ordermgmtms.dto.response.InventoryValidationRes;
 import com.abw12.absolutefitness.ordermgmtms.entity.OrderEntity;
 import com.abw12.absolutefitness.ordermgmtms.entity.OrderItemEntity;
 import com.abw12.absolutefitness.ordermgmtms.entity.PaymentEntity;
@@ -27,6 +27,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -97,54 +98,8 @@ public class HelperUtils {
         return orderData;
     }
 
-//    public PaymentEntity preparePaymentData(String razorpayPaymentId, String orderId, Payment paymentDetails) {
-//        PaymentEntity paymentEntity =new PaymentEntity();
-//
-//        if(!razorpayPaymentId.isEmpty())
-//            paymentEntity.setPgPaymentId(razorpayPaymentId);
-//
-//        if(StringUtils.isEmpty(orderId))
-//            paymentEntity.setOrderId(orderId);
-//
-//        if(paymentDetails.has(CommonConstants.STATUS_KEY)
-//                && !StringUtils.isEmpty(paymentDetails.get(CommonConstants.STATUS_KEY)))
-//            paymentEntity.setPaymentStatus(paymentDetails.get(CommonConstants.STATUS_KEY));
-//
-//        if(paymentDetails.has(CommonConstants.AMOUNT)
-//                && paymentDetails.get(CommonConstants.AMOUNT)!=null){
-//            Integer amount = paymentDetails.get(CommonConstants.AMOUNT);
-//            //convert the paise from response into rupees dividing by 100
-//            BigDecimal convertedAmount = new BigDecimal(amount/100);
-//            paymentEntity.setPaymentAmount(convertedAmount);
-//        }
-//        if(paymentDetails.has(CommonConstants.RAZORPAY_PAYMENT_METHOD)
-//                && !StringUtils.isEmpty(paymentDetails.get(CommonConstants.RAZORPAY_PAYMENT_METHOD)))
-//            paymentEntity.setPaymentMethod(paymentDetails.get(CommonConstants.RAZORPAY_PAYMENT_METHOD));
-//
-//        if(paymentDetails.has(CommonConstants.RAZORPAY_INVOICE_ID)
-//                && !StringUtils.isEmpty(paymentDetails.get(CommonConstants.RAZORPAY_INVOICE_ID)))
-//            paymentEntity.setInvoiceId(paymentDetails.get(CommonConstants.RAZORPAY_INVOICE_ID));
-//
-//        if(paymentDetails.has(CommonConstants.RAZORPAY_REFUND_STATUS)
-//                && !StringUtils.isEmpty(paymentDetails.get(CommonConstants.RAZORPAY_REFUND_STATUS)))
-//            paymentEntity.setRefundStatus(paymentDetails.get(CommonConstants.RAZORPAY_REFUND_STATUS));
-//
-//        if(paymentDetails.has(CommonConstants.RAZORPAY_AMOUNT_REFUNDED)
-//                && paymentDetails.get(CommonConstants.RAZORPAY_AMOUNT_REFUNDED) !=null)
-//            paymentEntity.setAmountRefunded(paymentDetails.get(CommonConstants.RAZORPAY_AMOUNT_REFUNDED));
-//
-//        if(paymentDetails.has(CommonConstants.RAZORPAY_PAYMENT_CREATED_AT)
-//                && paymentDetails.get(CommonConstants.RAZORPAY_PAYMENT_CREATED_AT) !=null)
-//            paymentEntity.setPaymentCreatedDate(
-//                    OffsetDateTime.parse(
-//                            String.valueOf(paymentDetails.get(CommonConstants.RAZORPAY_PAYMENT_CREATED_AT))
-//                    )
-//            );
-//
-//        return paymentEntity;
-//    }
 
-    public PaymentEntity preparePaymentDataWebHook(String orderId, Map<String,Object> razorpayPaymentEntity) {
+    public PaymentEntity preparePaymentData(String orderId, Map<String,Object> razorpayPaymentEntity) {
         PaymentEntity paymentEntity =new PaymentEntity();
 
         if(razorpayPaymentEntity.containsKey(CommonConstants.ID))
@@ -264,28 +219,17 @@ public class HelperUtils {
     public void updateVariantInventoryWebhook(List<OrderItemEntity> orderItems,String eventType) {
         orderItems.forEach(orderItem -> {
             String variantId = orderItem.getVariantId();
-            ResponseEntity<Map<String, Object>> variantInventoryDataRes = productCatalogInventoryClient.getVariantInventoryData(variantId);
-            VariantInventoryDTO updatedVariantInventoryData;
-            if(variantInventoryDataRes.getStatusCode().is2xxSuccessful() && variantInventoryDataRes.hasBody()){
-                VariantInventoryDTO parsedVariantData = objectMapper.convertValue(variantInventoryDataRes.getBody(), VariantInventoryDTO.class);
-                logger.info("Variant Inventory Data Received for variantId :: {}",variantId);
-                updatedVariantInventoryData=
-                        switch (eventType) {
-                            case PaymentEventType.AUTHORIZED -> reserveQuantity(parsedVariantData, orderItem,variantId);
-                            case PaymentEventType.CAPTURED -> updateQuantity(parsedVariantData,orderItem);
-                            case PaymentEventType.FAILED -> releaseReservedStock(parsedVariantData,variantId);
-                            default -> throw new IllegalStateException(String.format("Unexpected eventType=%s received while updating the inventory data for variantId=%s ",
-                                    eventType,variantId));
-                        };
-
-            }else{
-                throw new RuntimeException(String.format("Exception while getting variant inventory data from product-catalog-ms :: %s => %s",
-                        variantInventoryDataRes.getStatusCode(),variantInventoryDataRes.getBody()));
-            }
-            logger.info("Request to update variantId={} inventory data ::  Request: => {}",variantId,updatedVariantInventoryData);
-            ResponseEntity<Map<String, Object>> updateInventoryResponse = productCatalogInventoryClient.updateInventoryData(updatedVariantInventoryData);
+            Map<String,Object> request =
+                    switch (eventType) {
+                        case PaymentEventType.CAPTURED -> updateQuantity(orderItem);
+                        case PaymentEventType.FAILED -> releaseReservedStock(orderItem);
+                        default -> throw new IllegalStateException(String.format("Unexpected eventType=%s received while updating the inventory data for variantId=%s ",
+                                eventType,variantId));
+                    };
+            logger.info("Request to update variantId={} inventory data ::  Request: => {}",variantId,request);
+            ResponseEntity<Map<String, Object>> updateInventoryResponse = productCatalogInventoryClient.patchVariantInventoryData(request);
             if(!updateInventoryResponse.getStatusCode().is2xxSuccessful()) {
-                logger.error("Error while updating the inventory data for variantID={} => statusCode: {}",variantId,updateInventoryResponse.getStatusCode());
+                logger.error("Error while updating the inventory data for variantID={} :: statusCode: {} :: responseBody: {}",variantId,updateInventoryResponse.getStatusCode(),updateInventoryResponse.getBody());
                 throw new RuntimeException(String.format("Error response from update variant inventory API for variantID=%s => statusCode: %s",variantId,updateInventoryResponse.getStatusCode()));
             }else{
                 logger.info("Successfully Updated Variant Inventory data for variantId={}",variantId);
@@ -293,38 +237,23 @@ public class HelperUtils {
         });
     }
 
-    private VariantInventoryDTO releaseReservedStock(VariantInventoryDTO variantInventoryData, String variantId) {
-        variantInventoryData.setReserved(false);
-        variantInventoryData.setReservedQuantity(0L);
-        variantInventoryData.setModifiedAt(OffsetDateTime.now().toString());
-        logger.info("released stock for variantId={}",variantId);
-        return variantInventoryData;
+    // TODO: 20-01-2024 Need to decide how reserved quantity will work in case of simultaneous request for same variant
+    //  currently just set the reserved quantity and set the flag true
+    private Map<String,Object> releaseReservedStock( OrderItemEntity orderItem) {
+        Map<String,Object> requestBody = new HashMap<>();
+        requestBody.put("variantInventoryId",orderItem.getVariantInventoryId());
+        requestBody.put("releaseQuantity",orderItem.getQuantity());
+        requestBody.put("isReserved","false");
+        return requestBody;
     }
 
-    private VariantInventoryDTO reserveQuantity(VariantInventoryDTO variantInventoryData, OrderItemEntity orderItem,String variantId){
-        // TODO: 20-01-2024 Need to decide how reserved quantity will work in case of simultaneous request for same variant
-        //  currently just set the reserved quantity and set the flag true
-        Long currentQuantity = variantInventoryData.getQuantity();
-        if(orderItem.getQuantity() > currentQuantity){
-            logger.info("Current Inventory stock is less than requested quantity for the variantId={} => requestQuantity={}",
-                    variantId,orderItem.getQuantity());
-            throw new RuntimeException(String.format("Current Inventory stock is less than requested quantity for the variantId=%s => requestQuantity=%s",
-                    variantId,orderItem.getQuantity()));
-        }
-        variantInventoryData.setReserved(true);
-        variantInventoryData.setReservedQuantity(orderItem.getQuantity());
-        variantInventoryData.setModifiedAt(OffsetDateTime.now().toString());
-        return variantInventoryData;
-    }
-
-    private VariantInventoryDTO updateQuantity(VariantInventoryDTO variantInventoryData,OrderItemEntity orderItem){
-        Long currentQuantity = variantInventoryData.getQuantity();
-        Long updatedQuantity = currentQuantity - orderItem.getQuantity();
-        variantInventoryData.setQuantity(updatedQuantity);
-        variantInventoryData.setReserved(false);
-        variantInventoryData.setReservedQuantity(0L);
-        variantInventoryData.setModifiedAt(OffsetDateTime.now().toString());
-        return variantInventoryData;
+    private Map<String,Object> updateQuantity(OrderItemEntity orderItem){
+        Map<String,Object> requestBody = new HashMap<>();
+        requestBody.put("variantInventoryId",orderItem.getVariantInventoryId());
+        requestBody.put("updateQuantity",orderItem.getQuantity());
+        requestBody.put("releaseQuantity",orderItem.getQuantity());
+        requestBody.put("isReserved","false");
+        return requestBody;
     }
 
     public OrderStatusUpdateEvent constructOrderUpdateEvent(String orderId, OrderEntity orderEntity, PaymentEntity paymentEntity){
@@ -343,9 +272,59 @@ public class HelperUtils {
         return orderUpdateEvent;
     }
 
+    public Boolean checkStockStatus(CreateOrderReqDTO request) {
+        return request.getOrderItemList().stream()
+                .allMatch(orderItem -> {
+                    Map<String, Object> inventoryValidationReq = new HashMap<>();
+                    if (!StringUtils.isEmpty(orderItem.getVariantId()))
+                        inventoryValidationReq.put("variantId", orderItem.getVariantId());
+                    if (orderItem.getQuantity() != null)
+                        inventoryValidationReq.put("quantityRequested", orderItem.getQuantity());
+
+                    ResponseEntity<Map<String, Object>> inventoryResponse = productCatalogInventoryClient.cartValidation(inventoryValidationReq);
+                    if (!inventoryResponse.getStatusCode().is2xxSuccessful()) {
+                        logger.error("Error while calling cart validation API of product catalog service for variantID={} => statusCode: {}", orderItem.getVariantId(), inventoryResponse.getStatusCode());
+                        throw new RuntimeException(String.format("Error response from calling cart validation API of product catalog service for variantID=%s => statusCode: %s", orderItem.getVariantId(), inventoryResponse.getStatusCode()));
+                    } else {
+                        logger.info("Successfully fetched Inventory stock status for variantId={}", orderItem.getVariantId());
+                        InventoryValidationRes inventoryValidationRes = objectMapper.convertValue(inventoryResponse.getBody(), InventoryValidationRes.class);
+                        if (inventoryValidationRes.getStockStatus().equalsIgnoreCase(CommonConstants.OUT_OF_STOCK)) {
+                            logger.error("Requested Quantity is OUT OF STOCK for  variantID={} => requestedQuantity={}", orderItem.getVariantId(), orderItem.getQuantity());
+                            return false;
+                        } else {
+                            return true;
+                        }
+                    }
+                }); //if any of the orderItem from the list is out of stock return false and cancel the order
+    }
+
+    public void reserveVariantInventory(List<OrderItemDTO> storedOrderItems) {
+        storedOrderItems.forEach(orderItem -> {
+            Map<String,Object> params = new HashMap<>();
+            if(!StringUtils.isEmpty(orderItem.getVariantInventoryId()))
+                params.put("variantInventoryId",orderItem.getVariantInventoryId());
+            if(orderItem.getQuantity()!=null)
+                params.put("reservedQuantity",String.valueOf(orderItem.getQuantity()));
+
+            params.put("isReserved","true");
+
+            ResponseEntity<Map<String, Object>> response = productCatalogInventoryClient.patchVariantInventoryData(params);
+            if(response.getStatusCode().is2xxSuccessful()){
+                logger.info("Successfully updated variant inventory data for variantId={} with reserved quantity of :: {}",orderItem.getVariantId(),orderItem.getQuantity());
+            }else {
+                logger.error("Error occurred while updating variant inventory data for variantID={} => statusCode: {} => body: {}",orderItem.getVariantId(),response.getStatusCode(),response.getBody());
+            }
+        });
+    }
+
     public String offsetDateTimeFormatter(OffsetDateTime dateField){
+        if(dateField==null) return "";
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'");
         return dateField.format(fmt);
+    }
+
+    public static DateTimeFormatter dateFormat(){
+        return DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'");
     }
 }
 
