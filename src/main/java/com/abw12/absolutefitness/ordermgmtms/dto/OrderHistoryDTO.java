@@ -12,7 +12,7 @@ import java.util.List;
 @NoArgsConstructor
 public class OrderHistoryDTO {
 
-    private Long orderNumber;
+    private Integer orderNumber;
     private BigDecimal totalAmount;
     private String shippingAddress;
     private String billingAddress;

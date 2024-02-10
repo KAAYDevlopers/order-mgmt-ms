@@ -1,5 +1,5 @@
 server:
-  port: 8089
+  port: 8086
 spring:
   datasource:
     url: jdbc:postgresql://postgres-service:5432/absolutehealth
@@ -19,6 +19,16 @@ spring:
         config:
           product-inventory-controller:
             url: http://product-catalog:8090/catalog/inventory
+          product-catalog-controller:
+            url: http://localhost:8090/catalog/product
 springdoc:
   api-docs:
     path: /v3/order-mgmt-docs
+
+payment:
+  razorpay:
+    merchantId: NKZ5A3skq8OknJ
+    api:
+      createOrderURL: https://api.razorpay.com/v1/orders
+      keyId: rzp_test_qfAoOQO3Kpd4KG
+      secret: qWJOEBapbc8auZJ8D23EUFKV

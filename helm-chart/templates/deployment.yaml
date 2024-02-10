@@ -9,7 +9,7 @@ spec:
   template:
     metadata:
       labels:
-      app: {{ .Values.app.name }}
+        app: {{ .Values.app.name }}
     spec:
       containers:
         - name: {{ .Values.app.name }}
@@ -29,6 +29,21 @@ spec:
                 secretKeyRef:
                   name: psql-credentials
                   key: password
+            - name: MERCHANT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: razorpay-secret
+                  key: merchantId
+            - name: API_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: razorpay-secret
+                  key: api_keyId
+            - name: API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: razorpay-secret
+                  key: api_secret
           volumeMounts:
             - name: config-volume
               mountPath: {{ .Values.app.configPath }}

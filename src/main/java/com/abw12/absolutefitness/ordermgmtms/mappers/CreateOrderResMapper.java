@@ -1,25 +1,27 @@
 package com.abw12.absolutefitness.ordermgmtms.mappers;
 
 import com.abw12.absolutefitness.ordermgmtms.constants.CommonConstants;
-import com.abw12.absolutefitness.ordermgmtms.dto.response.CreateOrderResDTO;
 import com.razorpay.Order;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
+
+import java.util.Map;
 
 @Component
 public class CreateOrderResMapper {
 
-    public static CreateOrderResDTO mapToResponse(Order order){
-        if(order == null) return null;
+    public static void mapToResponse(Order order,String orderId,Map<String,Object> responseMap){
+        if(order == null) throw new RuntimeException("Order received cannot be Null while mapping to response...");
 
-        CreateOrderResDTO createOrderResDTO = new CreateOrderResDTO();
+        if(!StringUtils.isEmpty(orderId))
+            responseMap.put("orderId",orderId);
         if(order.has(CommonConstants.ID))
-            createOrderResDTO.setPgOrderId(order.get(CommonConstants.ID));
+            responseMap.put("pgOrderId",order.get(CommonConstants.ID));
         if(order.has(CommonConstants.CURRENCY_KEY))
-            createOrderResDTO.setCurrency(order.get(CommonConstants.CURRENCY_KEY));
+            responseMap.put("currency",order.get(CommonConstants.CURRENCY_KEY));
         if(order.has(CommonConstants.AMOUNT))
-            createOrderResDTO.setAmount(order.get(CommonConstants.AMOUNT));
+            responseMap.put("amount",order.get(CommonConstants.AMOUNT));
         if(order.has(CommonConstants.STATUS_KEY))
-            createOrderResDTO.setStatus(order.get(CommonConstants.STATUS_KEY));
-        return createOrderResDTO;
+            responseMap.put("status",order.get(CommonConstants.STATUS_KEY));
     }
 }

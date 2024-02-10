@@ -14,4 +14,5 @@ public class CreateOrderResDTO {
     private String orderId;
     private String pgOrderId;
     private String status;
+    private String errMsg;
 }

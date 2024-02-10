@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
 public class OrderStatusUpdateEvent {
 
     private String orderId;
-    private Long orderNumber;
+    private Integer orderNumber;
     private String paymentId;
     private String userId;
 //    private String orderStatus; //have to check if its needed
